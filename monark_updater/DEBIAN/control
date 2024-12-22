@@ -1,7 +1,0 @@
-Package: monark-updater
-Version: 1.1
-Section: network
-Priority: important
-Architecture: arm64
-Maintainer: MONARK monark@echomav.com
-Description: Updates MONARK debians and manages SD card mounting.

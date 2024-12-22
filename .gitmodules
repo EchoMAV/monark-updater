@@ -1,0 +1,6 @@
+[submodule "pistreamer"]
+	path = pistreamer
+	url = https://github.com/EchoMAV/PiStreamer
+[submodule "microhard"]
+	path = microhard
+	url = https://github.com/EchoMAV/microhard

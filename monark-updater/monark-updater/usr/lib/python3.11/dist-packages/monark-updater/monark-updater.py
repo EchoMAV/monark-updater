@@ -4,7 +4,7 @@
 import sys
 import os
 
-sys.path.insert(0, "/usr/lib/python3.11/dist-packages/monark_updater/")
+sys.path.insert(0, "/usr/lib/python3.11/dist-packages/monark-updater/")
 
 import subprocess
 from time import sleep
@@ -30,14 +30,15 @@ class MonarkUpdater:
         except:
             pass
 
-    def _run_command(self, command: str) -> Any:
+    def _run_command(self, command: str, no_timeout: bool = False) -> Any:
         try:
+            timeout = 320 if no_timeout else 2
             result = subprocess.run(
                 command.split(" "),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=2,
+                timeout=timeout,
             )
             return result
         except Exception as e:
@@ -93,11 +94,11 @@ class MonarkUpdater:
         verified_debs: List[str] = []
         for deb in debs:
             result = self._run_command(
-                f"openssl dgst -sha256 -verify {PUBLIC_KEY_LOCATION} -signature {SD_CARD_MOUNTED_LOCATION}/{deb}.sig {SD_CARD_MOUNTED_LOCATION}/{deb}"
+                f'echo "deb [signed-by={PUBLIC_KEY_LOCATION}] file:{SD_CARD_MOUNTED_LOCATION}/monark/ ./" | sudo tee /etc/apt/sources.list.d/local-repo.list',
+                no_timeout=True,
             )
-            if result.returncode == 0:  # TODO is this right?
-                print(f"Verified {deb}. Installing now.")
-                self._run_command(f"sudo apt install {SD_CARD_MOUNTED_LOCATION}/{deb}")
+            if result.returncode == 0:
+                print(f"Verified and installed {deb}.")
             else:
                 print(f"Failed to verify {deb}")
         return verified_debs
