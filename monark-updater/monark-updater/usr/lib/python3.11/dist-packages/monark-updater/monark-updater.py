@@ -4,7 +4,7 @@
 import sys
 import os
 
-sys.path.insert(0, "/usr/lib/python3.11/dist-packages/monark_updater/")
+sys.path.insert(0, "/usr/lib/python3.11/dist-packages/monark-updater/")
 
 import subprocess
 from time import sleep

@@ -3,7 +3,7 @@
 
 set -e
 
-PACKAGE_NAME="monark_updater"
+PACKAGE_NAME="monark-updater"
 SUDO=$(test ${EUID} -ne 0 && which sudo)
 
 $SUDO apt install -y dpkg
