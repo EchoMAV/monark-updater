@@ -3,32 +3,30 @@
 # We need to modify the path so pistreamer can be run from any location on the pi
 import sys
 import os
+import zipfile
 
 sys.path.insert(0, "/usr/lib/python3.11/dist-packages/monark-updater/")
+ON_DURATION = 0.08
 
 import subprocess
 from time import sleep
 from typing import Any, List, Tuple
 from constants import (
-    BUZZER_PIN,
     DCIM_FOLDER,
     MAX_SD_CARD_CHECKS,
+    MONARK_UPDATES_ZIP,
     PUBLIC_KEY_LOCATION,
     SD_CARD_LOCATION,
     SD_CARD_MOUNTED_LOCATION,
     SD_CARD_NAME,
 )
-import RPi.GPIO as GPIO
+
+from buzzer_service import BuzzerService
 
 
 class MonarkUpdater:
     def __init__(self) -> None:
         self.total_polls = 0  # we only try up to MAX_SD_CARD_CHECKS
-        try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(BUZZER_PIN, GPIO.OUT)  # Drives buzzer
-        except:
-            pass
 
     def _run_command(self, command: str, no_timeout: bool = False) -> Any:
         try:
@@ -68,8 +66,9 @@ class MonarkUpdater:
                 # make sure DCIM folder exists for saving images/video
                 self._run_command(f"sudo mkdir -p {DCIM_FOLDER}")
                 os.sync()  # type: ignore
+                BuzzerService().quick_beep()
                 return True
-            self._play_failure_buzz()
+            BuzzerService().long_beep()
             return False
         except Exception as e:
             print(f"Error occurred: {e}")
@@ -86,34 +85,56 @@ class MonarkUpdater:
             print(f"Error occurred: {e}")
             return False
 
-    def verify_and_install_debs(self) -> List[str]:
+    def verify_and_install_debs(self) -> None:
         file_list = os.listdir(SD_CARD_MOUNTED_LOCATION)
-        debs = [f for f in file_list if f.endswith(".deb")]
-        if not debs:
-            return []
-        verified_debs: List[str] = []
-        for deb in debs:
-            result = self._run_command(
-                f'echo "deb [signed-by={PUBLIC_KEY_LOCATION}] file:{SD_CARD_MOUNTED_LOCATION}/monark/ ./" | sudo tee /etc/apt/sources.list.d/local-repo.list',
+        monark_zip = [f for f in file_list if f.endswith(MONARK_UPDATES_ZIP)]
+        if not monark_zip:
+            print(f"No monark updates found on SD card")
+            return
+
+        print(f"Attempting to install {MONARK_UPDATES_ZIP}...")
+
+        # Specify the path to the zip file and the extraction directory
+        extracting_file_path = f"{SD_CARD_MOUNTED_LOCATION}/monark-updates"
+
+        # ensure echomav public key is installed (prevent duplicate entries)
+        apt_entry = (
+            f"deb [signed-by={PUBLIC_KEY_LOCATION}] file:{extracting_file_path} ./"
+        )
+        apt_file = "/etc/apt/sources.list.d/local-repo.list"
+        add_entry = False
+        if os.path.exists(apt_file):
+            with open(apt_file, "r") as f:
+                contents = f.read().split("\n")
+                if apt_entry not in contents:
+                    add_entry = True
+        if add_entry:
+            self._run_command(
+                f'echo "{apt_entry.strip()}" | sudo tee {apt_file}',
                 no_timeout=True,
             )
-            if result.returncode == 0:
-                print(f"Verified and installed {deb}.")
-            else:
-                print(f"Failed to verify {deb}")
-        return verified_debs
 
-    def _play_mounted_buzz(self):
-        for _ in range(1, 3):
-            GPIO.output(BUZZER_PIN, GPIO.HIGH)
-            sleep(0.1)
-            GPIO.output(BUZZER_PIN, GPIO.LOW)
-            sleep(0.1)
+        ret = self._run_command(
+            f"sudo apt update",
+            no_timeout=True,
+        )
+        print(ret)
 
-    def _play_failure_buzz(self):
-        GPIO.output(BUZZER_PIN, GPIO.HIGH)
-        sleep(3)
-        GPIO.output(BUZZER_PIN, GPIO.LOW)
+        # Extract the zip file
+        with zipfile.ZipFile(
+            f"{SD_CARD_MOUNTED_LOCATION}/{MONARK_UPDATES_ZIP}", "r"
+        ) as zip_ref:
+            zip_ref.extractall(SD_CARD_MOUNTED_LOCATION)
+
+        print(
+            f"Extracted {MONARK_UPDATES_ZIP} to {SD_CARD_MOUNTED_LOCATION}. Attempting to install debs...."
+        )
+
+        ret = self._run_command(
+            f"sudo apt install pistreamer monark-updater microhard",
+            no_timeout=True,
+        )
+        print(ret)
 
     def run(self) -> None:
         while self.total_polls < MAX_SD_CARD_CHECKS:
@@ -121,10 +142,10 @@ class MonarkUpdater:
             if is_present and not is_mounted:
                 if self.mount_sd_card():
                     print("SD card is mounted.")
-                    self._play_mounted_buzz()
                     self.verify_and_install_debs()
             elif is_present and is_mounted:
                 print("SD card is mounted and ready.")
+                self.verify_and_install_debs()
                 break
             else:
                 sleep(3)
