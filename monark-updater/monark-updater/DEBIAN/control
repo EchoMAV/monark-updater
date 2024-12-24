@@ -1,5 +1,5 @@
 Package: monark-updater
-Version: 1.1
+Version: 1.1.1
 Section: network
 Priority: important
 Architecture: arm64
