@@ -13,6 +13,7 @@ GPIO_LOW: Final = 1  # the SBX board inverts this logic
 ## SD Card Operations
 Single quick beep (SD card detected)
 Double beep fast heartbeat (Software update in progress)
+Three quick beeps (Software update complete)
 """
 
 
@@ -45,5 +46,12 @@ class BuzzerService:
                 self.quick_beep()
                 self.quick_beep()
                 time.sleep(SLOW_HEART_BEEP_DURATION)
+        except Exception:
+            GPIO.output(BUZZER_PIN, GPIO_LOW)
+
+    def three_quick_beeps(self):
+        try:
+            for _ in range(0, 3):
+                self.quick_beep()
         except Exception:
             GPIO.output(BUZZER_PIN, GPIO_LOW)

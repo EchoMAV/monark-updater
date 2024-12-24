@@ -129,24 +129,24 @@ class MonarkUpdater:
                 f"deb [signed-by={PUBLIC_KEY_LOCATION}] file:{extracting_file_path} ./"
             )
             apt_file = "/etc/apt/sources.list.d/local-repo.list"
-            add_entry = False
-            if os.path.exists(apt_file):
-                with open(apt_file, "r") as f:
-                    contents = f.read().split("\n")
-                    if apt_entry not in contents:
-                        add_entry = True
-            if add_entry:
-                self._run_command(
-                    f'echo "{apt_entry.strip()}" | sudo tee {apt_file}',
-                    no_timeout=True,
-                )
+            subprocess.run(
+                f'sudo sh -c "echo {apt_entry.strip()} > {apt_file}"',
+                shell=True,
+                check=True,
+            )
 
             ret = self._run_command(
                 f"sudo apt update",
                 no_timeout=True,
             )
 
-            print(ret)
+            if ret.returncode == 0:
+                print("Successfully updated apt")
+            else:
+                print(f"Failed to update apt: {ret}")
+                buzzer_process.send_signal(signal.SIGTERM)
+                BuzzerService().long_beep()
+                return
 
             # Extract the zip file
             with zipfile.ZipFile(
@@ -159,11 +159,22 @@ class MonarkUpdater:
             )
 
             ret = self._run_command(
-                f"sudo apt install pistreamer monark-updater microhard",
+                f"sudo apt install -y pistreamer monark-updater microhard",
                 no_timeout=True,
             )
-            print(ret)
+            if ret.returncode == 0:
+                print(
+                    "Successfully installed pistreamer, monark-updater, and microhard"
+                )
+            else:
+                print(f"Failed to pistreamer, monark-updater, and microhard: {ret}")
+                buzzer_process.send_signal(signal.SIGTERM)
+                BuzzerService().long_beep()
+                return
             buzzer_process.send_signal(signal.SIGTERM)
+            sleep(0.5)
+            BuzzerService().three_quick_beeps()
+
         except Exception as e:
             print(f"Error occurred: {e}")
             if buzzer_process:
