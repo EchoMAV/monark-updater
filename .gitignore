@@ -1,0 +1,5 @@
+private-key*
+*.vscode
+*.deb.sha256
+*.env
+*.deb.sha256
